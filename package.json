@@ -10,14 +10,20 @@
   "author": "PH Lundblom (ph.lundblom@sensenode.com)",
   "license": "ISC",
   "dependencies": {
+    "module-alias": "^2.2.3",
     "serialport": "^13.0.0"
   },
   "devDependencies": {
+    "@types/module-alias": "^2.0.4",
     "@types/node": "^24.9.1",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.6.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
+  },
+  "_moduleAliases": {
+    "@src": "dist"
   }
 }
