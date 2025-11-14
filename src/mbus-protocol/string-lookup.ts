@@ -162,13 +162,14 @@ export function manufacturerToString(manufacturer: number[]): string {
   );
 }
 
-function bytesToNumber(bytes: number[]): number {
-  // Ripped from original, cleaner ways exist but original code actually calls this with size == 3 at some point
-  const isNegative = bytes[bytes.length - 1] & 0x80;
+function bytesToNumber(bytes: number[] | Buffer, nbrBytes?: number): number {
+  const length = nbrBytes === undefined ? bytes.length : nbrBytes;
+
+  const isNegative = bytes[length - 1] & 0x80;
 
   let value = 0;
 
-  for (let i = bytes.length; i > 0; i--) {
+  for (let i = length; i > 0; i--) {
     if (isNegative) {
       value = (value << 8) + (bytes[i - 1] ^ 0xff);
     } else {
@@ -183,11 +184,21 @@ function bytesToNumber(bytes: number[]): number {
   return value;
 }
 
-export function bcdDecode(bcd: number[]): number {
+export function bcdDecode(bcd: number[] | Buffer): number {
   let value = 0;
 
   for (let i = bcd.length; i > 0; i--) {
     value = value * 100 + ((bcd[i - 1] >> 4) & 0x0f) * 10 + (bcd[i - 1] & 0x0f);
+  }
+
+  return value;
+}
+
+function bcdDecodeHex(bcd: number[] | Buffer): number {
+  let value = 0;
+
+  for (let i = bcd.length; i > 0; i--) {
+    value = (value << 8) | bcd[i - 1];
   }
 
   return value;
@@ -236,21 +247,158 @@ export function recordTariff(record: MbusDataRecord): number {
   return result;
 }
 
+export function recordValueNumber(record: MbusDataRecord): number | Date | null {
+  // ignore extension bit
+  const vif = record.header.vib.vif & MbusDibVif.WITHOUT_EXTENSION;
+  const vife = record.header.vib.vife?.length > 0 ? record.header.vib.vife[0] & MbusDibVif.WITHOUT_EXTENSION : 0;
+
+  switch (record.header.dib.dif & MbusDataRecordDifMask.DATA) {
+    case 0x00: // no data
+      return null;
+    case 0x01: // 1 byte integer (8 bit)
+      return dataIntegerDecode(record.data, 1);
+    case 0x02: // 2 byte (16 bit)
+      // E110 1100  Time Point (date)
+      if (vif == 0x6c) {
+        return dataTimestampDecode(record.data);
+      } else {
+        // 2 byte integer
+        return dataIntegerDecode(record.data, 2);
+      }
+    case 0x03: // 3 byte integer (24 bit)
+      return dataIntegerDecode(record.data, 3);
+    case 0x04: // 4 byte (32 bit)
+      // E110 1101  Time Point (date/time)
+      // E011 0000  Start (date/time) of tariff
+      // E111 0000  Date and time of battery change
+      if (
+        vif == 0x6d ||
+        (record.header.vib.vif == 0xfd && vife == 0x30) ||
+        (record.header.vib.vif == 0xfd && vife == 0x70)
+      ) {
+        return dataTimestampDecode(record.data);
+      } else {
+        // 4 byte integer
+        return dataIntegerDecode(record.data, 4);
+      }
+    case 0x05: // 4 Byte Real (32 bit)
+      return dataFloatDecode(record.data);
+    case 0x06: // 6 byte (48 bit)
+      // E110 1101  Time Point (date/time)
+      // E011 0000  Start (date/time) of tariff
+      // E111 0000  Date and time of battery change
+      if (
+        vif == 0x6d ||
+        (record.header.vib.vif == 0xfd && vife == 0x30) ||
+        (record.header.vib.vif == 0xfd && vife == 0x70)
+      ) {
+        return dataTimestampDecode(record.data);
+      } else {
+        // 6 byte integer
+        return dataIntegerDecode(record.data, 6);
+      }
+    case 0x07: // 8 byte integer (64 bit)
+      return dataIntegerDecode(record.data, 8);
+    case 0x09: // 2 digit BCD (8 bit)
+    case 0x0a: // 4 digit BCD (16 bit)
+    case 0x0b: // 6 digit BCD (24 bit)
+    case 0x0c: // 8 digit BCD (32 bit)
+    case 0x0e: // 12 digit BCD (48 bit)
+      if ((record.header.dib.dif & MbusDataRecordDifMask.FUNCTION) == 0x30) {
+        return bcdDecodeHex(record.data);
+      } else {
+        return bcdDecode(record.data);
+      }
+    case 0x0f: // special functions
+    // return dataBinDecode(record.data);
+    case 0x0d: // variable length
+    // if (record.data[0] <= 0xBF) {
+    //     return dataStringDecode(record.data.subarray(1));
+    // } else {
+    //     return dataBinDecode(record.data.subarray(1))
+    // }
+    default:
+      console.error(`Unknown DIF (0x${toHex(record.header.dib.dif)})`);
+      return null;
+  }
+}
+
+function dataIntegerDecode(data: Buffer, length: number): number {
+  return bytesToNumber(data, length);
+}
+
+function dataFloatDecode(data: Buffer): number {
+  return data.readFloatLE(0);
+}
+
+function dataTimestampDecode(data: Buffer): Date | null {
+  if (data.length === 6) {
+    // Type I = Compound CP48: Date and Time
+    if ((data[1] & 0x80) == 0) {
+      // Time valid ?
+      const second = data[0] & 0x3f;
+      const minute = data[1] & 0x3f;
+      const hour = data[2] & 0x1f;
+      const day = data[3] & 0x1f;
+      const month = (data[4] & 0x0f) - 1;
+      const year = 100 + (((data[3] & 0xe0) >> 5) | ((data[4] & 0xf0) >> 1));
+      // TODO Handle DST
+      // const dst = (data[0] & 0x40) ? 1 : 0;  // day saving time
+
+      return new Date(year, month, day, hour, minute, second);
+    }
+  } else if (data.length == 4) {
+    // Type F = Compound CP32: Date and Time
+    if ((data[0] & 0x80) == 0) {
+      // Time valid ?
+      const minute = data[0] & 0x3f;
+      const hour = data[1] & 0x1f;
+      const day = data[2] & 0x1f;
+      const month = (data[3] & 0x0f) - 1;
+      const year = ((data[2] & 0xe0) >> 5) | ((data[3] & 0xf0) >> 1);
+      let hundredYear = (data[1] & 0x60) >> 5;
+      if (hundredYear === 0 && year <= 80) {
+        //  compatibility with old meters with a circular two digit date
+        hundredYear = 1;
+      }
+      // TODO Handle DST
+      // const dst = data[1] & 0x80;  // day saving time
+      return new Date(
+        hundredYear === 0 && year <= 80 ? 100 + year : hundredYear * 100 + year,
+        month,
+        day,
+        hour,
+        minute,
+      );
+    }
+  } else if (data.length == 2) {
+    // Type G: Compound CP16: Date
+    const day = data[0] & 0x1f;
+    const month = (data[1] & 0x0f) - 1;
+    const year = 100 + (((data[0] & 0xe0) >> 5) | ((data[1] & 0xf0) >> 1));
+
+    return new Date(year, month, day);
+  }
+
+  return null;
+}
+
 export function recordUnitString(vib: MbusValueInformationBlock): string {
+  console.log(`unit vib vif ${vib.vif.toString(16)}`);
   if (vib.vif === 0xfb) {
     // first type of VIF extention: see table 8.4.4
     if (vib.vife.length == 0) {
       return 'Missing VIF extension';
     }
 
-    return vibUnitLookup(vib);
+    return vibUnitLookupFb(vib);
   } else if (vib.vif === 0xfd) {
     // first type of VIF extention: see table 8.4.4
     if (vib.vife.length === 0) {
       return 'Missing VIF extension';
     }
 
-    return vibUnitLookup(vib);
+    return vibUnitLookupFd(vib);
   } else if (vib.vif === 0x7c) {
     // custom VIF
     return String.fromCharCode(...vib.customVif);
@@ -499,7 +647,7 @@ export function vifUnitLookup(vif: number): string {
   }
 }
 
-export function vibUnitLookup(vib: MbusValueInformationBlock): string {
+export function vibUnitLookupFb(vib: MbusValueInformationBlock): string {
   const vife0 = vib.vife[0] & 0xff;
 
   switch (vife0 & MbusDibVif.WITHOUT_EXTENSION) {
@@ -684,5 +832,171 @@ export function vibUnitLookup(vib: MbusValueInformationBlock): string {
       return `cumul. count max power (${unitPrefix((vife0 & 0x07) - 3)} W)`;
     default:
       return `Unrecognized VIF 0xFB extension: 0x${toHex(vife0)}`;
+  }
+}
+
+function unitDurationNn(nn: number): string {
+  switch (nn) {
+    case 0:
+      return 'second(s)';
+    case 1:
+      return 'minute(s)';
+    case 2:
+      return 'hour(s)';
+    case 3:
+      return 'day(s)';
+  }
+
+  return 'error: out-of-range';
+}
+
+function unitDurationPp(pp: number): string {
+  switch (pp) {
+    case 0:
+      return 'hour(s)';
+    case 1:
+      return 'day(s)';
+    case 2:
+      return 'month(s)';
+    case 3:
+      return 'year(s)';
+  }
+
+  return 'error: out-of-range';
+}
+
+export function vibUnitLookupFd(vib: MbusValueInformationBlock): string {
+  // ignore the extension bit in this selection
+  const vife0 = vib.vife[0] & MbusDibVif.WITHOUT_EXTENSION;
+
+  if ((vife0 & 0x7c) === 0x00) {
+    // E000 00nn — Credit of 10^(nn-3)
+    return `Credit of ${unitPrefix((vife0 & 0x03) - 3)} of the nominal local legal currency units`;
+    // VIFE = E000 01nn Debit of 10nn-3 of the nominal local legal currency units
+  } else if ((vife0 & 0x7c) === 0x04) {
+    // E000 01nn — Debit of 10^(nn-3)
+    return `Debit of ${unitPrefix((vife0 & 0x03) - 3)} of the nominal local legal currency units`;
+  } else if (vife0 === 0x08) {
+    return 'Access Number (transmission count)';
+  } else if (vife0 === 0x09) {
+    return 'Medium (as in fixed header)';
+  } else if (vife0 === 0x0a) {
+    return 'Manufacturer (as in fixed header)';
+  } else if (vife0 === 0x0b) {
+    return 'Parameter set identification';
+  } else if (vife0 === 0x0c) {
+    return 'Model / Version';
+  } else if (vife0 === 0x0d) {
+    return 'Hardware version';
+  } else if (vife0 === 0x0e) {
+    return 'Firmware version';
+  } else if (vife0 === 0x0f) {
+    return 'Software version';
+  } else if (vife0 === 0x10) {
+    return 'Customer location';
+  } else if (vife0 === 0x11) {
+    return 'Customer';
+  } else if (vife0 === 0x12) {
+    return 'Access Code User';
+  } else if (vife0 === 0x13) {
+    return 'Access Code Operator';
+  } else if (vife0 === 0x14) {
+    return 'Access Code System Operator';
+  } else if (vife0 === 0x15) {
+    return 'Access Code Developer';
+  } else if (vife0 === 0x16) {
+    return 'Password';
+  } else if (vife0 === 0x17) {
+    return 'Error flags';
+  } else if (vife0 === 0x18) {
+    return 'Error mask';
+  } else if (vife0 === 0x19) {
+    return 'Reserved';
+  } else if (vife0 === 0x1a) {
+    return 'Digital output (binary)';
+  } else if (vife0 === 0x1b) {
+    return 'Digital input (binary)';
+  } else if (vife0 === 0x1c) {
+    return 'Baudrate';
+  } else if (vife0 === 0x1d) {
+    return 'response delay time';
+  } else if (vife0 === 0x1e) {
+    return 'Retry';
+  } else if (vife0 === 0x1f) {
+    return 'Reserved';
+  } else if (vife0 === 0x20) {
+    return 'First storage # for cyclic storage';
+  } else if (vife0 === 0x21) {
+    return 'Last storage # for cyclic storage';
+  } else if (vife0 === 0x22) {
+    return 'Size of storage block';
+  } else if (vife0 === 0x23) {
+    return 'Reserved';
+  } else if ((vife0 & 0x7c) === 0x24) {
+    // E010 01nn — Storage interval [sec..day]
+    return `Storage interval ${unitDurationNn(vife0 & 0x03)}`;
+  } else if (vife0 === 0x28) {
+    return 'Storage interval month(s)';
+  } else if (vife0 === 0x29) {
+    return 'Storage interval year(s)';
+  } else if (vife0 === 0x2a) {
+    return 'Reserved';
+  } else if (vife0 === 0x2b) {
+    return 'Reserved';
+  } else if ((vife0 & 0x7c) === 0x2c) {
+    // E010 11nn — Duration since last readout [sec..day]
+    return `Duration since last readout ${unitDurationNn(vife0 & 0x03)}`;
+  } else if (vife0 === 0x30) {
+    return 'Start (date/time) of tariff';
+  } else if ((vife0 & 0x7c) === 0x30) {
+    // E011 00nn — Duration of tariff [min..days]
+    return `Duration of tariff ${unitDurationNn(vife0 & 0x03)}`;
+  } else if ((vife0 & 0x7c) === 0x34) {
+    // E011 01nn — Period of tariff [sec..day]
+    return `Period of tariff ${unitDurationNn(vife0 & 0x03)}`;
+  } else if (vife0 === 0x38) {
+    return 'Period of tariff months(s)';
+  } else if (vife0 === 0x39) {
+    return 'Period of tariff year(s)';
+  } else if (vife0 === 0x3a) {
+    return 'dimensionless / no VIF';
+  } else if (vife0 === 0x3b) {
+    return 'Reserved';
+  } else if ((vife0 & 0x7c) === 0x3c) {
+    return 'Reserved';
+  } else if ((vife0 & 0x70) === 0x40) {
+    // E100 nnnn — 10^(nnnn-9) V
+    return `${unitPrefix((vife0 & 0x0f) - 9)} V`;
+  } else if ((vife0 & 0x70) === 0x50) {
+    // E101 nnnn — 10^(nnnn-12) A
+    return `${unitPrefix((vife0 & 0x0f) - 12)} A`;
+  } else if (vife0 === 0x60) {
+    return 'Reset counter';
+  } else if (vife0 === 0x61) {
+    return 'Cumulation counter';
+  } else if (vife0 === 0x62) {
+    return 'Control signal';
+  } else if (vife0 === 0x63) {
+    return 'Day of week';
+  } else if (vife0 === 0x64) {
+    return 'Week number';
+  } else if (vife0 === 0x65) {
+    return 'Time point of day change';
+  } else if (vife0 === 0x66) {
+    return 'State of parameter activation';
+  } else if (vife0 === 0x67) {
+    return 'Special supplier information';
+  } else if ((vife0 & 0x7c) === 0x68) {
+    // E110 10pp — Duration since last cumulation [hour..year]
+    return `Duration since last cumulation ${unitDurationPp(vife0 & 0x03)}`;
+  } else if ((vife0 & 0x7c) === 0x6c) {
+    // E110 11pp — Operating time battery [hour..year]
+    return `Operating time battery ${unitDurationPp(vife0 & 0x03)}`;
+  } else if (vife0 === 0x70) {
+    return 'Date and time of battery change';
+  } else if ((vife0 & 0x70) === 0x70) {
+    return 'Reserved VIF extension';
+  } else {
+    return `Unrecognized VIF 0xFD extension: 0x${toHex(vife0)}`;
   }
 }

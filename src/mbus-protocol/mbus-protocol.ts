@@ -17,6 +17,7 @@ import {
   recordStorageNumber,
   recordTariff,
   recordUnitString,
+  recordValueNumber,
   toHex,
   variableMediumToString,
 } from './string-lookup';
@@ -149,7 +150,7 @@ export class MbusProtocol {
         // tariff: 0, // if have tariff
         // device: '', // if have tariff
         unit: recordUnitString(record.header.vib),
-        value: 0,
+        value: recordValueNumber(record),
         timestamp: '', // if have
       };
     }

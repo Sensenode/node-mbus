@@ -595,16 +595,16 @@ export class MbusFrame {
         recordDataLen++;
       }
 
-      record.data = Buffer.alloc(recordDataLen);
-
-      if (i + record.data.length > this.dataLen) {
+      if (i + recordDataLen > this.dataLen) {
         console.error('Premature end of record at data');
 
         return null;
       }
 
+      record.data = Buffer.alloc(recordDataLen);
+
       // copy data
-      this.data.copy(record.data, 0, i, record.data.length);
+      this.data.copy(record.data, 0, i, i + record.data.length);
       i += record.data.length;
 
       // append the record and move on to next one

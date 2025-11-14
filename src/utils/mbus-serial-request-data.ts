@@ -25,7 +25,7 @@ const run = async () => {
 
   console.log(`Read status: ${result}, frame: ${frame && frame.data.toString('hex')}`);
   const mbusFrameData = frame?.verifyAndParse();
-  console.log(JSON.stringify(mbusFrameData, null, 2));
+  // console.log(JSON.stringify(mbusFrameData, null, 2));
 
   if (mbusFrameData) {
     console.log(proto.mbusFrameDataToObject(mbusFrameData));
