@@ -8,8 +8,18 @@ import {
   MbusDataRecord,
   MbusFrame,
   MbusFrameData,
+  MbusDibDif,
 } from '@src/mbus-protocol';
-import { bcdDecode, manufacturerToString, variableMediumToString } from './string-lookup';
+import {
+  bcdDecode,
+  manufacturerToString,
+  recordFunctionToString,
+  recordStorageNumber,
+  recordTariff,
+  recordUnitString,
+  toHex,
+  variableMediumToString,
+} from './string-lookup';
 
 export class MbusProtocol {
   private serial: MbusSerial;
@@ -121,10 +131,29 @@ export class MbusProtocol {
       medium: variableMediumToString(header.medium),
       accessNumber: header.access_no,
       status: header.status,
-      signature: `${header.signature[1].toString(16).padStart(2, '0')}${header.signature[0].toString(16).padStart(2, '0')}`,
+      signature: `${toHex(header.signature[1])}${toHex(header.signature[0])}`,
     };
   }
-  private variableRecordToObject(record: MbusDataRecord) {}
+
+  private variableRecordToObject(record: MbusDataRecord) {
+    if (record.header.dib.dif === MbusDibDif.MANUFACTURER_SPECIFIC) {
+      return { function: 'Manufacturer specific' };
+    } else if (record.header.dib.dif === MbusDibDif.MORE_RECORDS_FOLLOW) {
+      return { function: 'More records follow' };
+    } else {
+      const tariff = recordTariff(record);
+      return {
+        function: recordFunctionToString(record.header.dib),
+        storageNumber: recordStorageNumber(record),
+        // tariff >= 0 ? {}
+        // tariff: 0, // if have tariff
+        // device: '', // if have tariff
+        unit: recordUnitString(record.header.vib),
+        value: 0,
+        timestamp: '', // if have
+      };
+    }
+  }
 
   public isPrimaryAddress(address: number): boolean {
     return address >= 0x0 && address <= 0xff;

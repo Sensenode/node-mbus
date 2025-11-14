@@ -82,7 +82,7 @@ export enum MbusDataType {
   ERROR = 3,
 }
 
-enum MbusDataRecordDifMask {
+export enum MbusDataRecordDifMask {
   INST = 0x00,
   MIN = 0x10,
   TYPE_INT32 = 0x04,
@@ -93,7 +93,7 @@ enum MbusDataRecordDifMask {
   NON_DATA = 0xf0,
 }
 
-enum MbusDataRecordDifeMask {
+export enum MbusDataRecordDifeMask {
   STORAGE_NO = 0x0f,
   TARIFF = 0x30,
   DEVICE = 0x40,
@@ -104,13 +104,18 @@ const MBUS_FRAME_BASE_SIZE_SHORT = 5;
 const MBUS_FRAME_FIXED_SIZE_LONG = 6;
 
 // DATA RECORDS
-const MBUS_DIB_DIF_WITHOUT_EXTENSION = 0x7f;
-const MBUS_DIB_DIF_EXTENSION_BIT = 0x80;
-const MBUS_DIB_VIF_WITHOUT_EXTENSION = 0x7f;
-const MBUS_DIB_VIF_EXTENSION_BIT = 0x80;
-const MBUS_DIB_DIF_MANUFACTURER_SPECIFIC = 0x0f;
-const MBUS_DIB_DIF_MORE_RECORDS_FOLLOW = 0x1f;
-const MBUS_DIB_DIF_IDLE_FILLER = 0x2f; // DATA RECORDS
+export enum MbusDibVif {
+  WITHOUT_EXTENSION = 0x7f,
+  EXTENSION_BIT = 0x80,
+}
+
+export enum MbusDibDif {
+  WITHOUT_EXTENSION = 0x7f,
+  EXTENSION_BIT = 0x80,
+  MANUFACTURER_SPECIFIC = 0x0f,
+  MORE_RECORDS_FOLLOW = 0x1f,
+  IDLE_FILLER = 0x2f, // DATA RECORDS
+}
 
 const MBUS_DATA_INFO_BLOCK_DIFE_SIZE = 10;
 const MBUS_VALUE_INFO_BLOCK_VIFE_SIZE = 10;
@@ -450,7 +455,7 @@ export class MbusFrame {
 
     while (i < this.dataLen) {
       // Skip filler dif=2F
-      if ((this.data[i] & 0xff) == MBUS_DIB_DIF_IDLE_FILLER) {
+      if ((this.data[i] & 0xff) === MbusDibDif.IDLE_FILLER) {
         i++;
         continue;
       }
@@ -470,10 +475,10 @@ export class MbusFrame {
       record.header.dib.dif = this.data[i];
 
       if (
-        record.header.dib.dif == MBUS_DIB_DIF_MANUFACTURER_SPECIFIC ||
-        record.header.dib.dif == MBUS_DIB_DIF_MORE_RECORDS_FOLLOW
+        record.header.dib.dif === MbusDibDif.MANUFACTURER_SPECIFIC ||
+        record.header.dib.dif === MbusDibDif.MORE_RECORDS_FOLLOW
       ) {
-        if ((record.header.dib.dif & 0xff) == MBUS_DIB_DIF_MORE_RECORDS_FOLLOW) {
+        if ((record.header.dib.dif & 0xff) === MbusDibDif.MORE_RECORDS_FOLLOW) {
           variable.moreRecordsFollow = true;
         }
 
@@ -497,7 +502,7 @@ export class MbusFrame {
       let difeCount = 0;
       const difeBuf = Buffer.alloc(MBUS_DATA_INFO_BLOCK_DIFE_SIZE); // TODO Refactor array push/pop
 
-      while (i < this.dataLen && this.data[i] & MBUS_DIB_DIF_EXTENSION_BIT) {
+      while (i < this.dataLen && this.data[i] & MbusDibDif.EXTENSION_BIT) {
         if (difeCount >= MBUS_DATA_INFO_BLOCK_DIFE_SIZE) {
           console.error('Too many DIFE');
           return null;
@@ -521,7 +526,7 @@ export class MbusFrame {
       // VIF
       record.header.vib.vif = this.data[i++];
 
-      if ((record.header.vib.vif & MBUS_DIB_VIF_WITHOUT_EXTENSION) === 0x7c) {
+      if ((record.header.vib.vif & MbusDibVif.WITHOUT_EXTENSION) === 0x7c) {
         // variable length VIF in ASCII format
         let vifLen = this.data[i++];
 
@@ -542,11 +547,11 @@ export class MbusFrame {
       let vifeCount = 0;
       const vifeBuf = Buffer.alloc(MBUS_VALUE_INFO_BLOCK_VIFE_SIZE); // TODO Refactor array push/pop
 
-      if (record.header.vib.vif & MBUS_DIB_VIF_EXTENSION_BIT) {
+      if (record.header.vib.vif & MbusDibVif.EXTENSION_BIT) {
         vifeBuf[0] = this.data[i];
         vifeCount++;
 
-        while (i < this.dataLen && this.data[i] & MBUS_DIB_VIF_EXTENSION_BIT) {
+        while (i < this.dataLen && this.data[i] & MbusDibVif.EXTENSION_BIT) {
           if (vifeCount >= MBUS_VALUE_INFO_BLOCK_VIFE_SIZE) {
             console.error('Too many VIFE');
             return null;
