@@ -13,6 +13,7 @@ import {
 import {
   bcdDecode,
   manufacturerToString,
+  recordDevice,
   recordFunctionToString,
   recordStorageNumber,
   recordTariff,
@@ -143,15 +144,17 @@ export class MbusProtocol {
       return { function: 'More records follow' };
     } else {
       const tariff = recordTariff(record);
+
+      const tariffData = tariff >= 0 ? { tariff: tariff, device: recordDevice(record) } : {};
+      const timestampData = record.timestamp ? { timestamp: record.timestamp.toISOString() } : {};
+
       return {
         function: recordFunctionToString(record.header.dib),
         storageNumber: recordStorageNumber(record),
-        // tariff >= 0 ? {}
-        // tariff: 0, // if have tariff
-        // device: '', // if have tariff
         unit: recordUnitString(record.header.vib),
         value: recordValueNumber(record),
-        timestamp: '', // if have
+        ...tariffData,
+        ...timestampData,
       };
     }
   }

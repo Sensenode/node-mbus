@@ -500,7 +500,7 @@ export class MbusFrame {
 
       // read DIF extensions
       let difeCount = 0;
-      const difeBuf = Buffer.alloc(MBUS_DATA_INFO_BLOCK_DIFE_SIZE); // TODO Refactor array push/pop
+      const difeArray = [];
 
       while (i < this.dataLen && this.data[i] & MbusDibDif.EXTENSION_BIT) {
         if (difeCount >= MBUS_DATA_INFO_BLOCK_DIFE_SIZE) {
@@ -508,12 +508,12 @@ export class MbusFrame {
           return null;
         }
 
-        difeBuf[difeCount] = this.data[i + 1];
+        difeArray.push(this.data[i + 1]);
 
         difeCount++;
         i++;
       }
-      record.header.dib.dife = Array.from(difeBuf.subarray(0, difeCount).map((byte) => Number(byte)));
+      record.header.dib.dife = difeArray;
       i++;
 
       if (i > this.dataLen) {
@@ -545,10 +545,10 @@ export class MbusFrame {
 
       // VIFE
       let vifeCount = 0;
-      const vifeBuf = Buffer.alloc(MBUS_VALUE_INFO_BLOCK_VIFE_SIZE); // TODO Refactor array push/pop
+      const vifeArray = [];
 
       if (record.header.vib.vif & MbusDibVif.EXTENSION_BIT) {
-        vifeBuf[0] = this.data[i];
+        vifeArray.push(this.data[i]);
         vifeCount++;
 
         while (i < this.dataLen && this.data[i] & MbusDibVif.EXTENSION_BIT) {
@@ -557,13 +557,13 @@ export class MbusFrame {
             return null;
           }
 
-          vifeBuf[vifeCount] = this.data[i + 1];
+          vifeArray.push(this.data[i + 1]);
 
           vifeCount++;
           i++;
         }
 
-        record.header.vib.vife = Array.from(difeBuf.subarray(0, vifeCount).map((byte) => Number(byte)));
+        record.header.vib.vife = vifeArray;
         i++;
       }
 

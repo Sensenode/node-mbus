@@ -165,23 +165,30 @@ export function manufacturerToString(manufacturer: number[]): string {
 function bytesToNumber(bytes: number[] | Buffer, nbrBytes?: number): number {
   const length = nbrBytes === undefined ? bytes.length : nbrBytes;
 
-  const isNegative = bytes[length - 1] & 0x80;
-
-  let value = 0;
-
-  for (let i = length; i > 0; i--) {
-    if (isNegative) {
-      value = (value << 8) + (bytes[i - 1] ^ 0xff);
-    } else {
-      value = (value << 8) + bytes[i - 1];
-    }
+  let tmp: Buffer;
+  if (Buffer.isBuffer(bytes)) {
+    tmp = bytes;
+  } else {
+    tmp = Buffer.from(bytes);
   }
 
-  if (isNegative) {
-    value = -(value + 1);
+  switch (length) {
+    case 1:
+      return tmp.readUInt8(0);
+    case 2:
+      return tmp.readUInt16LE(0);
+    case 3:
+      return tmp.readUIntLE(0, 3);
+    case 4:
+      return tmp.readUInt32LE(0);
+    case 6:
+      return tmp.readUIntLE(0, 6);
+    case 8:
+      return tmp.readBigUInt64LE(0) as unknown as number;
+    default:
+      console.error(`Unsupported integer length ${length}`);
+      return -1;
   }
-
-  return value;
 }
 
 export function bcdDecode(bcd: number[] | Buffer): number {
@@ -232,22 +239,34 @@ export function recordStorageNumber(record: MbusDataRecord): number {
 }
 
 export function recordTariff(record: MbusDataRecord): number {
-  let result = -1;
-  let bit_index = 0;
+  let result = 0;
 
-  if (record.header.dib.dife.length > 0) {
-    result = 0;
-
-    record.header.dib.dife.forEach((dife) => {
-      result |= ((dife & MbusDataRecordDifeMask.TARIFF) >> 6) << bit_index;
-      bit_index++;
-    });
+  if (record.header.dib.dife.length === 0) {
+    return -1;
   }
+
+  record.header.dib.dife.forEach((dife, index) => {
+    result |= ((dife & MbusDataRecordDifeMask.TARIFF) >> 6) << index;
+  });
 
   return result;
 }
 
-export function recordValueNumber(record: MbusDataRecord): number | Date | null {
+export function recordDevice(record: MbusDataRecord): number {
+  let result = 0;
+
+  if (record.header.dib.dife.length === 0) {
+    return -1;
+  }
+
+  record.header.dib.dife.forEach((dife, index) => {
+    result |= ((dife & MbusDataRecordDifeMask.DEVICE) >> 6) << index;
+  });
+
+  return result;
+}
+
+export function recordValueNumber(record: MbusDataRecord): number | Date | string | null {
   // ignore extension bit
   const vif = record.header.vib.vif & MbusDibVif.WITHOUT_EXTENSION;
   const vife = record.header.vib.vife?.length > 0 ? record.header.vib.vife[0] & MbusDibVif.WITHOUT_EXTENSION : 0;
@@ -259,7 +278,7 @@ export function recordValueNumber(record: MbusDataRecord): number | Date | null 
       return dataIntegerDecode(record.data, 1);
     case 0x02: // 2 byte (16 bit)
       // E110 1100  Time Point (date)
-      if (vif == 0x6c) {
+      if (vif === 0x6c) {
         return dataTimestampDecode(record.data);
       } else {
         // 2 byte integer
@@ -272,9 +291,9 @@ export function recordValueNumber(record: MbusDataRecord): number | Date | null 
       // E011 0000  Start (date/time) of tariff
       // E111 0000  Date and time of battery change
       if (
-        vif == 0x6d ||
-        (record.header.vib.vif == 0xfd && vife == 0x30) ||
-        (record.header.vib.vif == 0xfd && vife == 0x70)
+        vif === 0x6d ||
+        (record.header.vib.vif === 0xfd && vife === 0x30) ||
+        (record.header.vib.vif === 0xfd && vife === 0x70)
       ) {
         return dataTimestampDecode(record.data);
       } else {
@@ -288,9 +307,9 @@ export function recordValueNumber(record: MbusDataRecord): number | Date | null 
       // E011 0000  Start (date/time) of tariff
       // E111 0000  Date and time of battery change
       if (
-        vif == 0x6d ||
-        (record.header.vib.vif == 0xfd && vife == 0x30) ||
-        (record.header.vib.vif == 0xfd && vife == 0x70)
+        vif === 0x6d ||
+        (record.header.vib.vif === 0xfd && vife === 0x30) ||
+        (record.header.vib.vif === 0xfd && vife === 0x70)
       ) {
         return dataTimestampDecode(record.data);
       } else {
@@ -304,19 +323,19 @@ export function recordValueNumber(record: MbusDataRecord): number | Date | null 
     case 0x0b: // 6 digit BCD (24 bit)
     case 0x0c: // 8 digit BCD (32 bit)
     case 0x0e: // 12 digit BCD (48 bit)
-      if ((record.header.dib.dif & MbusDataRecordDifMask.FUNCTION) == 0x30) {
+      if ((record.header.dib.dif & MbusDataRecordDifMask.FUNCTION) === 0x30) {
         return bcdDecodeHex(record.data);
       } else {
         return bcdDecode(record.data);
       }
-    case 0x0f: // special functions
-    // return dataBinDecode(record.data);
+    case 0x0f: // special functions // TODO
+      return record.data.toString('hex');
     case 0x0d: // variable length
-    // if (record.data[0] <= 0xBF) {
-    //     return dataStringDecode(record.data.subarray(1));
-    // } else {
-    //     return dataBinDecode(record.data.subarray(1))
-    // }
+      if (record.data[0] <= 0xbf) {
+        return String.fromCharCode(...record.data.subarray(1));
+      } else {
+        return record.data.subarray(1).toString('hex');
+      }
     default:
       console.error(`Unknown DIF (0x${toHex(record.header.dib.dif)})`);
       return null;
@@ -334,7 +353,7 @@ function dataFloatDecode(data: Buffer): number {
 function dataTimestampDecode(data: Buffer): Date | null {
   if (data.length === 6) {
     // Type I = Compound CP48: Date and Time
-    if ((data[1] & 0x80) == 0) {
+    if ((data[1] & 0x80) === 0) {
       // Time valid ?
       const second = data[0] & 0x3f;
       const minute = data[1] & 0x3f;
@@ -347,9 +366,9 @@ function dataTimestampDecode(data: Buffer): Date | null {
 
       return new Date(year, month, day, hour, minute, second);
     }
-  } else if (data.length == 4) {
+  } else if (data.length === 4) {
     // Type F = Compound CP32: Date and Time
-    if ((data[0] & 0x80) == 0) {
+    if ((data[0] & 0x80) === 0) {
       // Time valid ?
       const minute = data[0] & 0x3f;
       const hour = data[1] & 0x1f;
@@ -371,7 +390,7 @@ function dataTimestampDecode(data: Buffer): Date | null {
         minute,
       );
     }
-  } else if (data.length == 2) {
+  } else if (data.length === 2) {
     // Type G: Compound CP16: Date
     const day = data[0] & 0x1f;
     const month = (data[1] & 0x0f) - 1;
@@ -384,10 +403,9 @@ function dataTimestampDecode(data: Buffer): Date | null {
 }
 
 export function recordUnitString(vib: MbusValueInformationBlock): string {
-  console.log(`unit vib vif ${vib.vif.toString(16)}`);
   if (vib.vif === 0xfb) {
     // first type of VIF extention: see table 8.4.4
-    if (vib.vife.length == 0) {
+    if (vib.vife.length === 0) {
       return 'Missing VIF extension';
     }
 
