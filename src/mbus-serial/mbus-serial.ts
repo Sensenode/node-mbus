@@ -104,8 +104,6 @@ export class MbusSerial {
       return false;
     }
 
-    console.log(`packed frame: ${buf.toString('hex')}`);
-
     const drain = this.sp.write(buf);
 
     return new Promise((resolve, reject) => {
@@ -195,7 +193,6 @@ export class MbusSerial {
       }
       bytesRemaining = frame.importData(buf, bytesRead);
     } while (bytesRemaining > 0);
-    console.log(frame.data.toString('hex', 0, frame.dataLen));
 
     if (bytesRead === 0) {
       // Got timeout, nothing read

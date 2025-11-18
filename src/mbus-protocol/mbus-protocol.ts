@@ -9,6 +9,7 @@ import {
   MbusFrame,
   MbusFrameData,
   MbusDibDif,
+  FrameControlField,
 } from '@src/mbus-protocol';
 import {
   bcdDecode,
@@ -41,6 +42,83 @@ export class MbusProtocol {
     frame.address = address;
 
     return this.serial.sendFrame(frame);
+  }
+
+  async sendReqestAndReceiveMultiple(address: number, maxNbrFrames: number): Promise<[ReceiveResultCode, MbusFrame[]]> {
+    let retry = 0;
+    let moreFrames = true;
+
+    const frame = new MbusFrame(FrameType.SHORT);
+    frame.control = FrameControlMask.REQ_UD2 | FrameControlMask.DIR_M2S | FrameControlMask.FCV | FrameControlMask.FCB;
+    frame.address = address;
+
+    // continue to read until no more records are available (usually only one
+    // reply frame, but can be more for so-called multi-telegram replies)
+
+    const frames: MbusFrame[] = [];
+
+    while (moreFrames) {
+      if (retry > 3) {
+        // Origin is mbus_handle.max_data_retry
+        // Give up
+        return [ReceiveResultCode.TIMEOUT, []];
+      }
+
+      if (!(await this.serial.sendFrame(frame))) {
+        console.error('Failed to send mbus frame.');
+        return [ReceiveResultCode.ERROR, []];
+      }
+
+      const [code, replyFrame] = await this.serial.receiveFrame();
+
+      if (code === ReceiveResultCode.OK && replyFrame) {
+        frames.push(replyFrame);
+        retry = 0;
+      } else if (code === ReceiveResultCode.TIMEOUT) {
+        console.error('No M-Bus response frame received');
+        retry++;
+        continue;
+      } else if (code === ReceiveResultCode.INVALID) {
+        console.error('Received invalid M-Bus response frame');
+        retry++;
+        continue;
+      } else {
+        console.error('Failed to receive M-Bus response frame');
+        return [ReceiveResultCode.ERROR, []];
+      }
+
+      // We need to parse the data in the received frame to be able to tell
+      // if more records are available or not.
+      const mbusFrameData = replyFrame?.verifyAndParse();
+
+      if (!mbusFrameData) {
+        console.error('M-bus data parse error');
+        return [ReceiveResultCode.ERROR, []];
+      }
+
+      // Continue a cycle of sending requests and reading replies until the
+      // reply do not have DIF=0x1F in the last record (which signals that
+      // more records are available.
+
+      if (mbusFrameData.type != MbusDataType.VARIABLE) {
+        // only single frame replies for FIXED type frames
+        moreFrames = false;
+      } else {
+        moreFrames = false;
+
+        if (mbusFrameData.variable?.moreRecordsFollow && maxNbrFrames > 0 && frames.length < maxNbrFrames) {
+          // only readout max_frames
+          moreFrames = true;
+
+          // allocate new frame and increment next_frame pointer
+
+          // toogle FCB bit
+          frame.control ^= FrameControlField.FCB;
+        }
+      }
+    }
+
+    return [ReceiveResultCode.OK, frames];
   }
 
   async sendPingFrame(address: number, discardResponse: boolean): Promise<boolean> {
