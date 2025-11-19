@@ -402,6 +402,336 @@ function dataTimestampDecode(data: Buffer): Date | null {
   return null;
 }
 
+export function recordUnitToFactorAndQuantity(
+  vib: MbusValueInformationBlock,
+): [number, string] | [undefined, undefined] {
+  if (vib.vif === 0xfb) {
+    if (vib.vife.length === 0) {
+      return [undefined, undefined];
+    }
+
+    const vife0 = vib.vife[0] & 0xff;
+
+    switch (vife0 & MbusDibVif.WITHOUT_EXTENSION) {
+      case 0x00:
+      case 0x01:
+        return [(vife0 & 0x01) === 0 ? 0.01 : 0.001, 'kWh'];
+      case 0x02:
+      case 0x03:
+      case 0x04:
+      case 0x05:
+      case 0x06:
+      case 0x07:
+        return [undefined, undefined];
+      case 0x08:
+      case 0x09:
+        return [(vife0 & 0x01) === 0 ? 0.00001 : 0.000001, 'kWh'];
+      case 0x0a:
+      case 0x0b:
+      case 0x0c:
+      case 0x0d:
+      case 0x0e:
+      case 0x0f:
+        return [undefined, undefined];
+      case 0x10:
+      case 0x11:
+        return [unitFactor((vife0 & 0x01) + 2), 'm³'];
+      case 0x12:
+      case 0x13:
+      case 0x14:
+      case 0x15:
+      case 0x16:
+      case 0x17:
+        return [undefined, undefined];
+      case 0x18:
+      case 0x19:
+        return [unitFactor((vife0 & 0x01) + 2) * 0.000001, 'g'];
+      case 0x1a:
+      case 0x1b:
+      case 0x1c:
+      case 0x1d:
+      case 0x1e:
+      case 0x1f:
+      case 0x20:
+        return [undefined, undefined];
+      case 0x21:
+        return [0.0028316846592, 'm³'];
+      case 0x22:
+      case 0x23:
+        return [(vife0 & 0x01) === 0 ? 0.0003785411784 : 0.003785411784, 'm³'];
+      case 0x24:
+        return [0.0630901964, 'm³'];
+      case 0x25:
+        return [0.0000630901964, 'm³'];
+      case 0x26:
+        return [0.0000010515032733333, 'm³'];
+      case 0x27:
+        return [undefined, undefined];
+      case 0x28:
+      case 0x29:
+        return [(vife0 & 0x01) === 0 ? 100000 : 1000000, 'W'];
+      case 0x2a:
+      case 0x2b:
+      case 0x2c:
+      case 0x2d:
+      case 0x2e:
+      case 0x2f:
+        return [undefined, undefined];
+      case 0x30:
+      case 0x31:
+        return [(vife0 & 0x01) === 0 ? 1e8 / 3600 : 1e9 / 3600, 'W'];
+      case 0x32:
+      case 0x33:
+      case 0x34:
+      case 0x35:
+      case 0x36:
+      case 0x37:
+      case 0x38:
+      case 0x39:
+      case 0x3a:
+      case 0x3b:
+      case 0x3c:
+      case 0x3d:
+      case 0x3e:
+      case 0x3f:
+      case 0x40:
+      case 0x41:
+      case 0x42:
+      case 0x43:
+      case 0x44:
+      case 0x45:
+      case 0x46:
+      case 0x47:
+      case 0x48:
+      case 0x49:
+      case 0x4a:
+      case 0x4b:
+      case 0x4c:
+      case 0x4d:
+      case 0x4e:
+      case 0x4f:
+      case 0x52:
+      case 0x53:
+      case 0x54:
+      case 0x55:
+      case 0x56:
+      case 0x57:
+        return [undefined, undefined];
+      case 0x58:
+      case 0x59:
+      case 0x5a:
+      case 0x5b:
+        return [unitFactor((vife0 & 0x03) - 3), '°F'];
+      case 0x5c:
+      case 0x5d:
+      case 0x5e:
+      case 0x5f:
+        return [unitFactor((vife0 & 0x03) - 3), '°F'];
+      case 0x60:
+      case 0x61:
+      case 0x62:
+      case 0x63:
+        return [unitFactor((vife0 & 0x03) - 3), '°F'];
+      case 0x64:
+      case 0x65:
+      case 0x66:
+      case 0x67:
+        return [unitFactor((vife0 & 0x03) - 3), '°F'];
+      case 0x68:
+      case 0x69:
+      case 0x6a:
+      case 0x6b:
+      case 0x6c:
+      case 0x6d:
+      case 0x6e:
+      case 0x6f:
+        return [undefined, undefined];
+      case 0x70:
+      case 0x71:
+      case 0x72:
+      case 0x73:
+        return [unitFactor((vife0 & 0x03) - 3), '°F'];
+      case 0x74:
+      case 0x75:
+      case 0x76:
+      case 0x77:
+        return [unitFactor((vife0 & 0x03) - 3), '°C'];
+      case 0x78:
+      case 0x79:
+      case 0x7a:
+      case 0x7b:
+      case 0x7c:
+      case 0x7d:
+      case 0x7e:
+      case 0x7f:
+        return [unitFactor((vife0 & 0x07) - 3), 'W'];
+      default:
+        return [undefined, undefined];
+    }
+  } else if (vib.vif === 0xfd) {
+    const vife0 = vib.vife[0] & MbusDibVif.WITHOUT_EXTENSION;
+
+    if ((vife0 & 0x70) === 0x40) {
+      return [unitFactor((vife0 & 0x0f) - 9), 'V'];
+    } else if ((vife0 & 0x70) === 0x50) {
+      return [unitFactor((vife0 & 0x0f) - 12), 'A'];
+    }
+
+    return [undefined, undefined];
+  } else if (vib.vif === 0x7c) {
+    return [undefined, undefined];
+  } else if (vib.vif === 0xfc && (vib.vife[0] & 0x78) === 0x70) {
+    return [undefined, undefined];
+  }
+
+  switch (vib.vif & MbusDibVif.WITHOUT_EXTENSION) {
+    case 0x00:
+    case 0x00 + 1:
+    case 0x00 + 2:
+    case 0x00 + 3:
+    case 0x00 + 4:
+    case 0x00 + 5:
+    case 0x00 + 6:
+    case 0x00 + 7:
+      return [unitFactor((vib.vif & 0x07) - 3) / 1000, 'kWh'];
+    case 0x08:
+    case 0x08 + 1:
+    case 0x08 + 2:
+    case 0x08 + 3:
+    case 0x08 + 4:
+    case 0x08 + 5:
+    case 0x08 + 6:
+    case 0x08 + 7:
+      return [unitFactor(vib.vif & 0x07) * 2.7777777777778e-7, 'kWh'];
+    case 0x18:
+    case 0x18 + 1:
+    case 0x18 + 2:
+    case 0x18 + 3:
+    case 0x18 + 4:
+    case 0x18 + 5:
+    case 0x18 + 6:
+    case 0x18 + 7:
+      return [unitFactor((vib.vif & 0x07) - 3) * 1000, 'g'];
+    case 0x28:
+    case 0x28 + 1:
+    case 0x28 + 2:
+    case 0x28 + 3:
+    case 0x28 + 4:
+    case 0x28 + 5:
+    case 0x28 + 6:
+    case 0x28 + 7:
+      return [unitFactor((vib.vif & 0x07) - 3), 'W'];
+    case 0x30:
+    case 0x30 + 1:
+    case 0x30 + 2:
+    case 0x30 + 3:
+    case 0x30 + 4:
+    case 0x30 + 5:
+    case 0x30 + 6:
+    case 0x30 + 7:
+      return [unitFactor(vib.vif & 0x07) * 0.00027777777777778, 'W'];
+    case 0x10:
+    case 0x10 + 1:
+    case 0x10 + 2:
+    case 0x10 + 3:
+    case 0x10 + 4:
+    case 0x10 + 5:
+    case 0x10 + 6:
+    case 0x10 + 7:
+      return [unitFactor((vib.vif & 0x07) - 6), 'm³'];
+    case 0x38:
+    case 0x38 + 1:
+    case 0x38 + 2:
+    case 0x38 + 3:
+    case 0x38 + 4:
+    case 0x38 + 5:
+    case 0x38 + 6:
+    case 0x38 + 7:
+      return [unitFactor((vib.vif & 0x07) - 6) / 3600, 'm³/s'];
+    case 0x40:
+    case 0x40 + 1:
+    case 0x40 + 2:
+    case 0x40 + 3:
+    case 0x40 + 4:
+    case 0x40 + 5:
+    case 0x40 + 6:
+    case 0x40 + 7:
+      return [unitFactor((vib.vif & 0x07) - 7) / 60, 'm³/s'];
+    case 0x48:
+    case 0x48 + 1:
+    case 0x48 + 2:
+    case 0x48 + 3:
+    case 0x48 + 4:
+    case 0x48 + 5:
+    case 0x48 + 6:
+    case 0x48 + 7:
+      return [unitFactor((vib.vif & 0x07) - 9), 'm³/s'];
+    case 0x50:
+    case 0x50 + 1:
+    case 0x50 + 2:
+    case 0x50 + 3:
+    case 0x50 + 4:
+    case 0x50 + 5:
+    case 0x50 + 6:
+    case 0x50 + 7:
+      return [undefined, undefined]; // TODO support flow-mass
+    case 0x58:
+    case 0x58 + 1:
+    case 0x58 + 2:
+    case 0x58 + 3:
+      return [unitFactor((vib.vif & 0x03) - 3), '°C'];
+    case 0x5c:
+    case 0x5c + 1:
+    case 0x5c + 2:
+    case 0x5c + 3:
+      return [unitFactor((vib.vif & 0x03) - 3), '°C'];
+    case 0x68:
+    case 0x68 + 1:
+    case 0x68 + 2:
+    case 0x68 + 3:
+      return [undefined, undefined];
+    case 0x20:
+    case 0x20 + 1:
+    case 0x20 + 2:
+    case 0x20 + 3:
+    case 0x24:
+    case 0x24 + 1:
+    case 0x24 + 2:
+    case 0x24 + 3:
+    case 0x70:
+    case 0x70 + 1:
+    case 0x70 + 2:
+    case 0x70 + 3:
+    case 0x74:
+    case 0x74 + 1:
+    case 0x74 + 2:
+    case 0x74 + 3:
+    case 0x6c:
+    case 0x6c + 1:
+      return [undefined, undefined];
+    case 0x60:
+    case 0x60 + 1:
+    case 0x60 + 2:
+    case 0x60 + 3:
+      return [unitFactor((vib.vif & 0x03) - 3), '°C'];
+    case 0x64:
+    case 0x64 + 1:
+    case 0x64 + 2:
+    case 0x64 + 3:
+      return [unitFactor((vib.vif & 0x03) - 3), '°C'];
+    case 0x6e:
+    case 0x6f:
+    case 0x7c:
+    case 0x78:
+    case 0x7a:
+    case 0x7f:
+    case 0xff:
+      return [undefined, undefined];
+    default:
+      return [undefined, undefined];
+  }
+}
+
 export function recordUnitString(vib: MbusValueInformationBlock): string {
   if (vib.vif === 0xfb) {
     // first type of VIF extention: see table 8.4.4
@@ -451,11 +781,15 @@ function unitPrefix(exp: number): string {
   return table[exp] ?? `1e${exp}`;
 }
 
+function unitFactor(exp: number): number {
+  return 10 ** exp;
+}
+
 export function toHex(value: number): string {
   return value.toString(16).padStart(2, '0');
 }
 
-export function vifUnitLookup(vif: number): string {
+function vifUnitLookup(vif: number): string {
   switch (
     vif & MbusDibVif.WITHOUT_EXTENSION // ignore the extension bit in this selection
   ) {

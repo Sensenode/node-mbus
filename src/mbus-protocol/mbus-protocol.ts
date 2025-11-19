@@ -19,6 +19,7 @@ import {
   recordStorageNumber,
   recordTariff,
   recordUnitString,
+  recordUnitToFactorAndQuantity,
   recordValueNumber,
   toHex,
   variableMediumToString,
@@ -232,13 +233,23 @@ export class MbusProtocol {
       const tariffData = tariff >= 0 ? { tariff: tariff, device: recordDevice(record) } : {};
       const timestampData = record.timestamp ? { timestamp: record.timestamp.toISOString() } : {};
 
+      const value = recordValueNumber(record);
+      let scaledValueData = {};
+      if (typeof value === 'number') {
+        const [factor, quantity] = recordUnitToFactorAndQuantity(record.header.vib);
+        if (factor !== undefined) {
+          scaledValueData = { scaledValue: value * factor, baseUnit: quantity };
+        }
+      }
+
       return {
         function: recordFunctionToString(record.header.dib),
         storageNumber: recordStorageNumber(record),
         unit: recordUnitString(record.header.vib),
-        value: recordValueNumber(record),
+        value: value,
         ...tariffData,
         ...timestampData,
+        ...scaledValueData,
       };
     }
   }
