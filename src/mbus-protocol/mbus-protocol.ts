@@ -139,14 +139,20 @@ export class MbusProtocol {
     return true;
   }
 
-  async discardFrames(): Promise<void> {
+  async discardFrames(): Promise<boolean> {
+    let gotFrame = false;
+
     while (true) {
       const [result] = await this.serial.receiveFrame();
 
       if (![ReceiveResultCode.OK, ReceiveResultCode.INVALID].includes(result)) {
         break;
       }
+
+      gotFrame = true;
     }
+
+    return gotFrame;
   }
 
   async receiveFrame(): Promise<[ReceiveResultCode, MbusFrame | undefined]> {
