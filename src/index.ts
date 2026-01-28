@@ -8,3 +8,6 @@
  * Modifications and TypeScript translation:
  *   Copyright (c) 2026, SenseNode AB
  */
+
+export { MbusProtocol } from './mbus-protocol';
+export { MbusSerial } from './mbus-serial';

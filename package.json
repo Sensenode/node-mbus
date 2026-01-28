@@ -1,5 +1,5 @@
 {
-  "name": "node-mbus-ts",
+  "name": "@sensenode/node-mbus",
   "version": "1.0.0",
   "description": "A TypeScript M-Bus implementation of the common libmbus library.",
   "main": "index.js",
