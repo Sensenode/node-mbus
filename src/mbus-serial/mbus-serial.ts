@@ -104,7 +104,7 @@ export class MbusSerial {
       return false;
     }
 
-    const drain = this.sp.write(buf);
+    this.sp.write(buf);
 
     return new Promise((resolve, reject) => {
       this.sp.drain((err) => {

@@ -194,8 +194,6 @@ export class MbusProtocol {
       return {};
     }
 
-    const obj = {};
-
     const header = this.variableHeaderToObject(data.header);
 
     const records = data.records.map((record) => {
