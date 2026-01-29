@@ -26,7 +26,18 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
   },
-  "_moduleAliases": {
-    "@src": "dist"
+  "files": [
+    "package.json",
+    "COPYING",
+    "LICENCE",
+    "README.md",
+    "src/**/*.ts",
+    "dist/**/*.js",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
   }
 }
