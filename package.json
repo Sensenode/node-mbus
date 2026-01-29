@@ -2,7 +2,7 @@
   "name": "@sensenode/node-mbus",
   "version": "1.0.0",
   "description": "A TypeScript M-Bus implementation of the common libmbus library.",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc"
@@ -10,7 +10,6 @@
   "author": "PH Lundblom (ph.lundblom@sensenode.com)",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "module-alias": "^2.2.3",
     "serialport": "^13.0.0"
   },
   "devDependencies": {

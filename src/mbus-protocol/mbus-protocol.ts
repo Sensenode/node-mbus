@@ -9,7 +9,7 @@
  *   Copyright (c) 2026, SenseNode AB
  */
 
-import { MbusSerial, PurgeStrategy, ReceiveResultCode } from '@src/mbus-serial/';
+import { MbusSerial, PurgeStrategy, ReceiveResultCode } from '../mbus-serial/';
 import {
   FrameControlMask,
   FrameType,
@@ -21,7 +21,7 @@ import {
   MbusFrameData,
   MbusDibDif,
   FrameControlField,
-} from '@src/mbus-protocol';
+} from './mbus-frame';
 import {
   bcdDecode,
   manufacturerToString,

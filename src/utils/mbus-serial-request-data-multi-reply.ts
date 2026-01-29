@@ -9,9 +9,7 @@
  *   Copyright (c) 2026, SenseNode AB
  */
 
-import 'module-alias/register';
-import { MbusProtocol } from '@src/mbus-protocol';
-import { MbusSerial } from '@src/mbus-serial';
+import { MbusProtocol, MbusSerial } from '../index';
 
 const serial = new MbusSerial({ device: '/dev/ttyUSB0', baudrate: 2400 });
 const proto = new MbusProtocol(serial);

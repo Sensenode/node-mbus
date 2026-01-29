@@ -9,7 +9,7 @@
  *   Copyright (c) 2026, SenseNode AB
  */
 
-import { MbusFrame } from '@src/mbus-protocol';
+import { MbusFrame } from '../mbus-protocol';
 import { SerialPort } from 'serialport';
 
 export enum ReceiveResultCode {
