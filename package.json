@@ -1,10 +1,10 @@
 {
   "name": "@sensenode/node-mbus",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A TypeScript M-Bus implementation of the common libmbus library.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Sensenode/node-mbus.git"
+    "url": "git+https://github.com/Sensenode/node-mbus.git"
   },
   "main": "dist/index.js",
   "scripts": {
