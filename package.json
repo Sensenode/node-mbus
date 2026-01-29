@@ -2,6 +2,10 @@
   "name": "@sensenode/node-mbus",
   "version": "1.0.0",
   "description": "A TypeScript M-Bus implementation of the common libmbus library.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sensenode/node-mbus.git"
+  },
   "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
