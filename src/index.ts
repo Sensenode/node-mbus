@@ -9,5 +9,5 @@
  *   Copyright (c) 2026, SenseNode AB
  */
 
-export { MbusProtocol } from './mbus-protocol';
-export { MbusSerial } from './mbus-serial';
+export { FrameType, MbusProtocol } from './mbus-protocol';
+export { MbusSerial, ReceiveResultCode } from './mbus-serial';
